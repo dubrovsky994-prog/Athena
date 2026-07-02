@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Athena: Stoic OS</title>
+    
+    <!-- PWA Manifest (встроенный) -->
+    <link rel="manifest" href='data:application/manifest+json,{"name":"Athena: Stoic OS","short_name":"Athena","start_url":".","display":"standalone","background_color":"%2305070a","theme_color":"%2300f0ff","icons":[{"src":"data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 192 192%22%3E%3Ccircle cx=%2296%22 cy=%2296%22 r=%2290%22 fill=%22%2300f0ff%22/%3E%3Ctext x=%2296%22 y=%22130%22 font-size=%22120%22 text-anchor=%22middle%22 fill=%22%2305070a%22 font-weight=%22bold%22%3EA%3C/text%3E%3C/svg%3E","sizes":"192x192","type":"image/svg+xml"}]}'>
+    
+    <meta name="theme-color" content="#00f0ff">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        :root {
+            --bg-primary: #05070a; --bg-secondary: #0a0f18; --bg-tertiary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.8);
+            --text-primary: #e2e8f0; --text-secondary: #94a3b8; --text-muted: #64748b;
+            --accent-jarvis: #00f0ff; --accent-jarvis-dim: rgba(0, 240, 255, 0.15);
+            --accent-athena: #fbbf24; --accent-athena-dim: rgba(251, 191, 36, 0.15);
+            --accent-danger: #ef4444; --accent-success: #10b981;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --font-main: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-mono: 'SF Mono', Monaco, monospace;
+            --radius: 14px;
+        }
+        html, body { 
+            font-family: var(--font-main); background: var(--bg-primary); color: var(--text-primary);
+            min-height: 100vh; overflow-x: hidden; -webkit-font-smoothing: antialiased;
+        }
+        body::before {
+            content: ''; position: fixed; inset: 0;
+            background-image: linear-gradient(rgba(0, 240, 255, 0.03) 1px, transparent 1px),
+                              linear-gradient(90deg, rgba(0, 240, 255, 0.03) 1px, transparent 1px);
+            background-size: 40px 40px; pointer-events: none; z-index: 0;
+        }
+        .app { position: relative; z-index: 1; padding-bottom: 80px; }
+        
+        /* Header */
+        .header { 
+            padding: 20px 16px; background: var(--bg-secondary); 
+            border-bottom: 1px solid var(--border-color); position: sticky; top: 0; z-index: 50;
+            backdrop-filter: blur(20px);
+        }
+        .header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .logo { display: flex; align-items: center; gap: 10px; }
+        .logo-icon { 
+            width: 36px; height: 36px; background: linear-gradient(135deg, var(--accent-jarvis), var(--accent-athena));
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            font-weight: bold; color: var(--bg-primary); font-size: 16px;
+        }
+        .logo-text { font-size: 18px; font-weight: 700; }
+        .logo-sub { font-size: 10px; color: var(--text-muted); letter-spacing: 1px; }
+        
+        /* Pages */
+        .page { display: none; padding: 16px; animation: fadeIn 0.3s; }
+        .page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .page-title { font-size: 24px; font-weight: 700; margin-bottom: 4px; }
+        .page-sub { color: var(--text-muted); font-size: 13px; margin-bottom: 20px; }
+        
+        /* Cards */
+        .card { 
+            background: var(--bg-card); border: 1px solid var(--border-color); 
+            border-radius: var(--radius); padding: 18px; margin-bottom: 14px;
+            backdrop-filter: blur(10px);
+        }
+        .card-title { font-size: 15px; font-weight: 600; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* Stats Grid */
+        .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+        .stat { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: var(--radius); padding: 14px 10px; text-align: center; }
+        .stat-val { font-size: 26px; font-weight: 700; font-family: var(--font-mono); margin: 4px 0; }
+        .stat-lbl { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+        .text-jarvis { color: var(--accent-jarvis); }
+        .text-athena { color: var(--accent-athena); }
+        .text-success { color: var(--accent-success); }
+        .text-danger { color: var(--accent-danger); }
+        
+        /* Quote */
+        .quote { 
+            background: linear-gradient(135deg, var(--bg-card), rgba(251, 191, 36, 0.05));
+            border-left: 3px solid var(--accent-athena); padding: 16px; border-radius: 0 var(--radius) var(--radius) 0;
+            font-style: italic; color: var(--text-secondary); font-size: 14px; line-height: 1.5; margin-bottom: 16px;
+        }
+        .quote-author { display: block; margin-top: 8px; font-style: normal; font-weight: 600; color: var(--accent-athena); font-size: 12px; }
+        
+        /* Bottom Navigation */
+        .nav { 
+            position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-secondary);
+            border-top: 1px solid var(--border-color); display: flex; justify-content: space-around;
+            padding: 8px 0 calc(8px + env(safe-area-inset-bottom)); z-index: 100;
+            backdrop-filter: blur(20px);
+        }
+        .nav-item { 
+            flex: 1; display: flex; flex-direction: column; align-items: center; gap: 4px;
+            padding: 8px 4px; color: var(--text-muted); cursor: pointer; transition: color 0.2s;
+            font-size: 10px; font-weight: 500;
+        }
+        .nav-item.active { color: var(--accent-jarvis); }
+        .nav-icon { font-size: 22px; }
+        
+        /* Form Elements */
+        .form-group { margin-bottom: 16px; }
+        .form-label { display: block; font-size: 12px; font-weight: 500; color: var(--text-secondary); margin-bottom: 6px; }
+        .form-input, .form-textarea { 
+            width: 100%; padding: 12px; background: var(--bg-tertiary); border: 1px solid var(--border-color);
+            border-radius: 10px; color: var(--text-primary); font-size: 14px; font-family: var(--font-main);
+        }
+        .form-textarea { min-height: 90px; resize: vertical; }
+        .form-input:focus, .form-textarea:focus { outline: none; border-color: var(--accent-jarvis); }
+        
+        /* Buttons */
+        .btn { 
+            padding: 12px 20px; border-radius: 10px; font-size: 14px; font-weight: 600;
+            cursor: pointer; border: none; width: 100%; transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        .btn-primary { background: linear-gradient(135deg, var(--accent-jarvis), #0088cc); color: var(--bg-primary); }
+        .btn-primary:active { transform: scale(0.98); }
+        .btn-secondary { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border-color); }
+        
+        /* Radio Cards */
+        .radio-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .radio-card { 
+            padding: 14px 10px; background: var(--bg-tertiary); border: 2px solid var(--border-color);
+            border-radius: 10px; cursor: pointer; text-align: center; transition: all 0.2s;
+        }
+        .radio-card.selected { border-color: var(--accent-jarvis); background: var(--accent-jarvis-dim); }
+        .radio-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+        .radio-desc { font-size: 11px; color: var(--text-muted); }
+        
+        /* Slider */
+        .slider-wrap { margin-bottom: 18px; }
+        .slider-head { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 13px; }
+        .slider-val { font-family: var(--font-mono); color: var(--accent-jarvis); font-weight: bold; }
+        input[type="range"] { 
+            width: 100%; height: 6px; background: var(--bg-tertiary); border-radius: 3px;
+            -webkit-appearance: none; outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb { 
+            -webkit-appearance: none; width: 22px; height: 22px; background: var(--accent-jarvis);
+            border-radius: 50%; cursor: pointer; box-shadow: 0 0 10px var(--accent-jarvis);
+        }
+        
+        /* Tabs */
+        .tabs { display: flex; gap: 6px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; }
+        .tab { 
+            padding: 8px 14px; background: var(--bg-tertiary); border: 1px solid var(--border-color);
+            border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap;
+            color: var(--text-secondary);
+        }
+        .tab.active { background: var(--accent-jarvis-dim); color: var(--accent-jarvis); border-color: var(--accent-jarvis); }
+        
+        /* Archive Items */
+        .archive-item { 
+            padding: 14px; background: var(--bg-tertiary); border: 1px solid var(--border-color);
+            border-radius: 10px; margin-bottom: 10px;
+        }
+        .archive-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+        .archive-meta { font-size: 11px; color: var(--text-muted); }
+        .badge { 
+            display: inline-block; padding: 3px 8px; border-radius: 10px; font-size: 10px;
+            font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .badge-jarvis { background: var(--accent-jarvis-dim); color: var(--accent-jarvis); }
+        .badge-athena { background: var(--accent-athena-dim); color: var(--accent-athena); }
+        
+        /* Chart */
+        .chart-wrap { position: relative; width: 100%; max-width: 280px; margin: 0 auto; }
+        canvas { width: 100%; height: auto; }
+        
+        /* Report */
+        .report-block { 
+            background: var(--bg-tertiary); padding: 14px; border-radius: 10px;
+            font-family: var(--font-mono); font-size: 12px; line-height: 1.8; white-space: pre-wrap;
+            color: var(--text-secondary); margin-bottom: 12px;
+        }
+        
+        /* Toast */
+        .toast-container { position: fixed; top: 20px; left: 50%; transform: translateX(-50%); z-index: 9999; }
+        .toast { 
+            padding: 12px 20px; background: var(--bg-secondary); border: 1px solid var(--border-color);
+            border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 8px;
+            animation: slideDown 0.3s; font-size: 13px;
+        }
+        .toast-success { border-left: 3px solid var(--accent-success); }
+        @keyframes slideDown { from { transform: translateY(-20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        
+        .hidden { display: none !important; }
+        
+        /* Settings */
+        .setting-row { 
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 14px 0; border-bottom: 1px solid var(--border-color);
+        }
+        .setting-row:last-child { border-bottom: none; }
+        .setting-info { flex: 1; }
+        .setting-title { font-weight: 600; font-size: 14px; margin-bottom: 2px; }
+        .setting-desc { font-size: 11px; color: var(--text-muted); }
+        
+        /* Toggle */
+        .toggle { 
+            position: relative; width: 48px; height: 26px; background: var(--bg-tertiary);
+            border-radius: 13px; cursor: pointer; transition: background 0.2s;
+        }
+        .toggle.on { background: var(--accent-jarvis); }
+        .toggle::after { 
+            content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+            background: white; border-radius: 50%; transition: transform 0.2s;
+        }
+        .toggle.on::after { transform: translateX(22px); }
+    </style>
+</head>
+<body>
+    <div class="toast-container" id="toastContainer"></div>
+    
+    <div class="app">
+        <!-- HEADER -->
+        <header class="header">
+            <div class="header-top">
+                <div class="logo">
+                    <div class="logo-icon">A</div>
+                    <div>
+                        <div class="logo-text">ATHENA</div>
+                        <div class="logo-sub">STOIC OS v2.0</div>
+                    </div>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted);" id="currentDate"></div>
+            </div>
+        </header>
+
+        <!-- PAGE: DASHBOARD -->
+        <section class="page active" id="page-dashboard">
+            <h1 class="page-title">Командный мостик</h1>
+            <p class="page-sub">Сводка по операционной системе вашего разума</p>
+
+            <div class="quote" id="dailyQuote">
+                <span id="quoteText">Загрузка...</span>
+                <span class="quote-author" id="quoteAuthor">— Марк Аврелий</span>
+            </div>
+
+            <div class="stats">
+                <div class="stat">
+                    <div class="stat-lbl">Фокус</div>
+                    <div class="stat-val text-jarvis" id="statFocus">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-lbl">Эмоции</div>
+                    <div class="stat-val text-athena" id="statEmotion">--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-lbl">Действия</div>
+                    <div class="stat-val text-jarvis" id="statAction">--</div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>Баланс Стоика</span>
+                    <span class="badge badge-jarvis">Неделя</span>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="radarChart" width="280" height="280"></canvas>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>Последние операции</span>
+                    <span class="badge badge-athena">Live</span>
+                </div>
+                <div id="recentActivity">
+                    <p style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 13px;">
+                        Нет записей. Начните с Дневного Триажа.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- PAGE: TRIAGE -->
+        <section class="page" id="page-triage">
+            <h1 class="page-title">Дневной Триаж</h1>
+            <p class="page-sub">Алгоритм Дихотомии Контроля</p>
+
+            <div class="card">
+                <div id="triageStep1">
+                    <div class="card-title">Шаг 1. Фиксация события</div>
+                    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 14px;">
+                        Опишите ситуацию без эмоций, только факты.
+                    </p>
+                    <div class="form-group">
+                        <label class="form-label">Что произошло?</label>
+                        <textarea class="form-textarea" id="triageEvent" placeholder="Например: Подрядчик сорвал сроки..."></textarea>
+                    </div>
+                    <button class="btn btn-primary" id="btnTriageNext1">Анализировать →</button>
+                </div>
+
+                <div id="triageStep2" class="hidden">
+                    <div class="card-title">Шаг 2. Дихотомия Контроля</div>
+                    <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 14px;">
+                        Зависит ли ядро проблемы от ваших прямых действий?
+                    </p>
+                    <div class="radio-group" id="controlGroup">
+                        <div class="radio-card" data-value="control">
+                            <div class="radio-title">⚙️ В моей власти</div>
+                            <div class="radio-desc">Могу изменить</div>
+                        </div>
+                        <div class="radio-card" data-value="no-control">
+                            <div class="radio-title">🌊 Вне власти</div>
+                            <div class="radio-desc">Факт реальности</div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 10px; margin-top: 16px;">
+                        <button class="btn btn-secondary" id="btnTriageBack2" style="flex: 1;">← Назад</button>
+                        <button class="btn btn-primary hidden" id="btnTriageNext2" style="flex: 1;">Далее →</button>
+                    </div>
+                </div>
+
+                <div id="triageStep3" class="hidden">
+                    <div class="card-title" id="step3Title">Шаг 3. Протокол</div>
+                    
+                    <div id="protocolControl" class="hidden">
+                        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 14px;">
+                            💡 Эмоции не нужны, нужна хирургия. Напишите 3 шага.
+                        </p>
+                        <div class="form-group">
+                            <label class="form-label">Шаг 1</label>
+                            <input type="text" class="form-input" id="action1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Шаг 2</label>
+                            <input type="text" class="form-input" id="action2">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Шаг 3</label>
+                            <input type="text" class="form-input" id="action3">
+                        </div>
+                    </div>
+
+                    <div id="protocolNoControl" class="hidden">
+                        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 14px;">
+                            💡 Amor Fati. Опиши событие как физик, без эмоций.
+                        </p>
+                        <div class="form-group">
+                            <label class="form-label">Объективация</label>
+                            <textarea class="form-textarea" id="objDesc" placeholder="Это просто задержка движения материи..."></textarea>
+                        </div>
+                    </div>
+
+                    <div style="display: flex; gap: 10px; margin-top: 16px;">
+                        <button class="btn btn-secondary" id="btnTriageBack3" style="flex: 1;">← Назад</button>
+                        <button class="btn btn-primary" id="btnTriageSave" style="flex: 1;">Зафиксировать</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- PAGE: AUDIT -->
+        <section class="page" id="page-audit">
+            <h1 class="page-title">Вечерняя Ревизия</h1>
+            <p class="page-sub">Ежедневный аудит без самобичевания</p>
+
+            <div class="card">
+                <div class="card-title">Метрики дня</div>
+                
+                <div class="slider-wrap">
+                    <div class="slider-head">
+                        <span>🎯 Фокус (Стратегия)</span>
+                        <span class="slider-val" id="valFocus">5</span>
+                    </div>
+                    <input type="range" min="1" max="10" value="5" id="sliderFocus">
+                </div>
+
+                <div class="slider-wrap">
+                    <div class="slider-head">
+                        <span>🧠 Контроль (Психология)</span>
+                        <span class="slider-val" id="valEmotion">5</span>
+                    </div>
+                    <input type="range" min="1" max="10" value="5" id="sliderEmotion">
+                </div>
+
+                <div class="slider-wrap">
+                    <div class="slider-head">
+                        <span>💰 Действия (Бизнес)</span>
+                        <span class="slider-val" id="valAction">5</span>
+                    </div>
+                    <input type="range" min="1" max="10" value="5" id="sliderAction">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Главный инсайт дня</label>
+                    <input type="text" class="form-input" id="auditInsight" placeholder="Что я понял сегодня?">
+                </div>
+
+                <button class="btn btn-primary" id="btnSaveAudit">Закрыть день</button>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Вердикт Джарвиса</div>
+                <div id="auditVerdict" style="text-align: center; padding: 20px;">
+                    <div style="font-size: 40px; margin-bottom: 10px;">⚖️</div>
+                    <p style="color: var(--text-muted); font-size: 13px;">Настройте метрики.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- PAGE: ANALYTICS -->
+        <section class="page" id="page-analytics">
+            <h1 class="page-title">Аналитика</h1>
+            <p class="page-sub">Отчеты за период</p>
+
+            <div class="tabs">
+                <div class="tab active" data-period="day">День</div>
+                <div class="tab" data-period="week">Неделя</div>
+                <div class="tab" data-period="month">Месяц</div>
+                <div class="tab" data-period="year">Год</div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>Статистика</span>
+                    <span class="badge badge-jarvis" id="periodLabel">День</span>
+                </div>
+                <div id="analyticsContent">
+                    <p style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 13px;">
+                        Недостаточно данных для анализа.
+                    </p>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-title">Отчет Джарвиса</div>
+                <div class="report-block" id="reportBlock">
+                    Данные будут рассчитаны после выбора периода.
+                </div>
+                <button class="btn btn-secondary" id="btnExportCSV">📥 Экспорт в CSV</button>
+            </div>
+        </section>
+
+        <!-- PAGE: ARCHIVE -->
+        <section class="page" id="page-archive">
+            <h1 class="page-title">Архив</h1>
+            <p class="page-sub">История всех записей</p>
+
+            <div class="card">
+                <div class="card-title">
+                    <span>Все записи</span>
+                    <button class="btn btn-secondary" id="btnClearArchive" style="padding: 6px 12px; font-size: 11px; width: auto;">🗑️ Очистить</button>
+                </div>
+                <div id="archiveList">
+                    <p style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 13px;">
+                        Архив пуст.
+                    </p>
+                </div>
+            </div>
+        </section>
+
+        <!-- PAGE: SETTINGS -->
+        <section class="page" id="page-settings">
+            <h1 class="page-title">Настройки</h1>
+            <p class="page-sub">Управление приложением</p>
+
+            <div class="card">
+                <div class="card-title">Уведомления</div>
+                
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-title">Вечерняя ревизия</div>
+                        <div class="setting-desc">Напоминание в 21:00</div>
+                    </div>
+                    <div class="toggle on" id="toggleEvening" data-key="eveningAudit"></div>
+                </div>
+
+                <div class="setting-row">
+                    <div class="setting-info">
+                        <div class="setting-title">Утренняя цитата</div>
+                        <div class="setting-desc">Мудрость в 08:00</div>
+                    </div>
+                    <div class="toggle on" id="toggleMorning" data-key="morningQuote"></div>
+                </div>
+
+                <button class="btn btn-primary" id="btnRequestNotif" style="margin-top: 16px;">
+                    🔔 Включить уведомления
+                </button>
+            </div>
+
+            <div class="card">
+                <div class="card-title">О приложении</div>
+                <p style="color: var(--text-secondary); font-size: 13px; line-height: 1.6;">
+                    <strong>Athena: Stoic OS v2.0</strong><br>
+                    Личная операционная система для управления разумом и бизнесом.<br><br>
+                    Основана на философии Марка Аврелия.<br>
+                    Создано для Владимира, сэр.
+                </p>
+            </div>
+        </section>
+
+        <!-- BOTTOM NAVIGATION -->
+        <nav class="nav">
+            <div class="nav-item active" data-page="dashboard">
+                <div class="nav-icon">📊</div>
+                <div>Главная</div>
+            </div>
+            <div class="nav-item" data-page="triage">
+                <div class="nav-icon">⚔️</div>
+                <div>Триаж</div>
+            </div>
+            <div class="nav-item" data-page="audit">
+                <div class="nav-icon">🌙</div>
+                <div>Аудит</div>
+            </div>
+            <div class="nav-item" data-page="analytics">
+                <div class="nav-icon">📈</div>
+                <div>Анализ</div>
+            </div>
+            <div class="nav-item" data-page="archive">
+                <div class="nav-icon">🗄️</div>
+                <div>Архив</div>
+            </div>
+            <div class="nav-item" data-page="settings">
+                <div class="nav-icon">⚙️</div>
+                <div>Ещё</div>
+            </div>
+        </nav>
+    </div>
+
+    <script>
+        // ============ STATE MANAGEMENT ============
+        class State {
+            constructor() {
+                this.triageHistory = this.load('athena_triage') || [];
+                this.auditHistory = this.load('athena_audit') || [];
+                this.settings = this.load('athena_settings') || {
+                    eveningAudit: true, morningQuote: true
+                };
+                this.wizard = { step: 1, event: '', control: null };
+            }
+            load(k) { try { return JSON.parse(localStorage.getItem(k)); } catch(e) { return null; } }
+            save(k, v) { localStorage.setItem(k, JSON.stringify(v)); }
+            addTriage(e) { this.triageHistory.unshift(e); this.save('athena_triage', this.triageHistory); }
+            addAudit(e) { this.auditHistory.unshift(e); this.save('athena_audit', this.auditHistory); }
+            clearAll() {
+                this.triageHistory = []; this.auditHistory = [];
+                localStorage.removeItem('athena_triage'); localStorage.removeItem('athena_audit');
+            }
+        }
+
+        // ============ ANALYTICS ENGINE ============
+        class Analytics {
+            constructor(state) { this.state = state; }
+            
+            getData(period) {
+                const now = new Date(); let start;
+                if (period === 'day') start = new Date(now.setHours(0,0,0,0));
+                else if (period === 'week') { start = new Date(); start.setDate(now.getDate() - 7); }
+                else if (period === 'month') { start = new Date(); start.setMonth(now.getMonth() - 1); }
+                else { start = new Date(); start.setFullYear(now.getFullYear() - 1); }
+                
+                return {
+                    audits: this.state.auditHistory.filter(a => new Date(a.timestamp) >= start),
+                    triages: this.state.triageHistory.filter(t => new Date(t.timestamp) >= start)
+                };
+            }
+            
+            calc(data) {
+                if (data.audits.length === 0) return null;
+                const s = data.audits.reduce((a, c) => {
+                    a.f += c.focus; a.e += c.emotion; a.a += c.action; return a;
+                }, { f: 0, e: 0, a: 0 });
+                const n = data.audits.length;
+                const ctrl = data.triages.filter(t => t.control === 'control').length;
+                const days = new Set(data.audits.map(a => new Date(a.timestamp).toDateString())).size;
+                return {
+                    avgF: (s.f/n).toFixed(1), avgE: (s.e/n).toFixed(1), avgA: (s.a/n).toFixed(1),
+                    totalT: data.triages.length, ctrlT: ctrl, noCtrlT: data.triages.length - ctrl,
+                    days: days
+                };
+            }
+            
+            report(period, stats) {
+                if (!stats) return 'Недостаточно данных.';
+                const names = { day: 'ДЕНЬ', week: 'НЕДЕЛЮ', month: 'МЕСЯЦ', year: 'ГОД' };
+                let r = `📊 ОТЧЕТ ЗА ${names[period]}\n\n`;
+                r += `🎯 Средний фокус: ${stats.avgF}/10\n`;
+                r += `🧠 Контроль эмоций: ${stats.avgE}/10\n`;
+                r += `💰 Реальные действия: ${stats.avgA}/10\n\n`;
+                r += `⚔️ Всего триажей: ${stats.totalT}\n`;
+                r += `   • Взято в работу: ${stats.ctrlT}\n`;
+                r += `   • Amor Fati: ${stats.noCtrlT}\n\n`;
+                r += `📅 Дней с аудитами: ${stats.days}\n\n`;
+                
+                if (stats.avgF >= 8) r += `✅ Отличная стратегическая дисциплина`;
+                else if (stats.avgF >= 5) r += `⚠️ Потенциал для улучшения фокуса`;
+                else r += `❌ Критически низкий фокус`;
+                return r;
+            }
+            
+            exportCSV(period) {
+                const data = this.getData(period);
+                let csv = 'Дата,Фокус,Эмоции,Действия,Инсайт\n';
+                data.audits.forEach(a => {
+                    csv += `${new Date(a.timestamp).toLocaleDateString('ru-RU')},${a.focus},${a.emotion},${a.action},"${a.insight||''}"\n`;
+                });
+                return csv;
+            }
+        }
+
+        // ============ NOTIFICATIONS ============
+        class Notifications {
+            constructor(state) {
+                this.state = state;
+                this.checkInterval = null;
+            }
+            
+            async request() {
+                if (!('Notification' in window)) {
+                    alert('Уведомления не поддерживаются браузером');
+                    return false;
+                }
+                const p = await Notification.requestPermission();
+                return p === 'granted';
+            }
+            
+            start() {
+                if (this.checkInterval) clearInterval(this.checkInterval);
+                this.checkInterval = setInterval(() => this.check(), 60000);
+                this.check();
+            }
+            
+            check() {
+                const now = new Date();
+                const t = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+                
+                if (this.state.settings.eveningAudit && t === '21:00') {
+                    this.show('🌙 Время для вечерней ревизии', 'Завершите день с анализом своих действий');
+                }
+                if (this.state.settings.morningQuote && t === '08:00') {
+                    this.show('☀️ Утренняя мудрость', 'Начните день с стоической цитаты');
+                }
+            }
+            
+            show(title, body) {
+                if (Notification.permission !== 'granted') return;
+                new Notification(title, { body, icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192"%3E%3Ccircle cx="96" cy="96" r="90" fill="%2300f0ff"/%3E%3Ctext x="96" y="130" font-size="120" text-anchor="middle" fill="%2305070a" font-weight="bold"%3EA%3C/text%3E%3C/svg%3E' });
+            }
+        }
+
+        // ============ UI CONTROLLER ============
+        class UI {
+            constructor(state, analytics, notifications) {
+                this.state = state;
+                this.analytics = analytics;
+                this.notif = notifications;
+                this.currentPeriod = 'day';
+                this.init();
+            }
+            
+            init() {
+                this.setupDate();
+                this.setupNavigation();
+                this.setupQuotes();
+                this.setupTriage();
+                this.setupAudit();
+                this.setupAnalytics();
+                this.setupSettings();
+                this.renderDashboard();
+                this.notif.start();
+            }
+            
+            setupDate() {
+                const d = new Date();
+                document.getElementById('currentDate').textContent = d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+            }
+            
+            setupNavigation() {
+                document.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        const page = item.dataset.page;
+                        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+                        document.getElementById(`page-${page}`).classList.add('active');
+                        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                        item.classList.add('active');
+                        if (page === 'dashboard') this.renderDashboard();
+                        if (page === 'archive') this.renderArchive();
+                        if (page === 'analytics') this.renderAnalytics();
+                    });
+                });
+            }
+            
+            setupQuotes() {
+                const quotes = [
+                    { t: "У тебя есть власть над разумом, но не над внешними событиями. Осознай это, и ты обретешь силу.", a: "Марк Аврелий" },
+                    { t: "Препятствие на пути становится путем.", a: "Марк Аврелий" },
+                    { t: "Лучшая месть — не быть похожим на того, кто тебя обидел.", a: "Марк Аврелий" },
+                    { t: "Не трать время на размышления о других, если это не связано с общим благом.", a: "Марк Аврелий" },
+                    { t: "Встань на рассвете и скажи себе: 'Я встречу вмешивающегося, неблагодарного, наглого.'", a: "Марк Аврелий" }
+                ];
+                const q = quotes[Math.floor(Math.random() * quotes.length)];
+                document.getElementById('quoteText').textContent = q.t;
+                document.getElementById('quoteAuthor').textContent = `— ${q.a}`;
+            }
+            
+            setupTriage() {
+                document.getElementById('btnTriageNext1').onclick = () => {
+                    const e = document.getElementById('triageEvent').value.trim();
+                    if (!e) { this.toast('Опишите событие'); return; }
+                    this.state.wizard.event = e;
+                    this.triageStep(2);
+                };
+                document.getElementById('btnTriageBack2').onclick = () => this.triageStep(1);
+                document.getElementById('btnTriageBack3').onclick = () => this.triageStep(2);
+                document.getElementById('btnTriageNext2').onclick = () => this.triageStep(3);
+                
+                document.querySelectorAll('#controlGroup .radio-card').forEach(c => {
+                    c.onclick = () => {
+                        document.querySelectorAll('#controlGroup .radio-card').forEach(x => x.classList.remove('selected'));
+                        c.classList.add('selected');
+                        this.state.wizard.control = c.dataset.value;
+                        document.getElementById('btnTriageNext2').classList.remove('hidden');
+                    };
+                });
+                
+                document.getElementById('btnTriageSave').onclick = () => {
+                    const entry = {
+                        timestamp: new Date().toISOString(),
+                        event: this.state.wizard.event,
+                        control: this.state.wizard.control,
+                        actions: this.state.wizard.control === 'control' ? [
+                            document.getElementById('action1').value,
+                            document.getElementById('action2').value,
+                            document.getElementById('action3').value
+                        ] : [],
+                        objDesc: this.state.wizard.control === 'no-control' ? document.getElementById('objDesc').value : ''
+                    };
+                    this.state.addTriage(entry);
+                    this.toast('✅ Событие оцифровано');
+                    this.resetTriage();
+                };
+            }
+            
+            triageStep(n) {
+                this.state.wizard.step = n;
+                ['triageStep1','triageStep2','triageStep3'].forEach((id, i) => {
+                    document.getElementById(id).classList.toggle('hidden', i+1 !== n);
+                });
+                if (n === 3) {
+                    const isCtrl = this.state.wizard.control === 'control';
+                    document.getElementById('protocolControl').classList.toggle('hidden', !isCtrl);
+                    document.getElementById('protocolNoControl').classList.toggle('hidden', isCtrl);
+                    document.getElementById('step3Title').textContent = isCtrl ? 'Шаг 3. Протокол Действия' : 'Шаг 3. Amor Fati';
+                }
+            }
+            
+            resetTriage() {
+                document.getElementById('triageEvent').value = '';
+                document.getElementById('action1').value = '';
+                document.getElementById('action2').value = '';
+                document.getElementById('action3').value = '';
+                document.getElementById('objDesc').value = '';
+                document.querySelectorAll('#controlGroup .radio-card').forEach(c => c.classList.remove('selected'));
+                document.getElementById('btnTriageNext2').classList.add('hidden');
+                this.state.wizard = { step: 1, event: '', control: null };
+                this.triageStep(1);
+            }
+            
+            setupAudit() {
+                ['Focus','Emotion','Action'].forEach(n => {
+                    const s = document.getElementById(`slider${n}`);
+                    const v = document.getElementById(`val${n}`);
+                    s.oninput = () => { v.textContent = s.value; this.updateVerdict(); };
+                });
+                document.getElementById('btnSaveAudit').onclick = () => {
+                    const entry = {
+                        timestamp: new Date().toISOString(),
+                        focus: +document.getElementById('sliderFocus').value,
+                        emotion: +document.getElementById('sliderEmotion').value,
+                        action: +document.getElementById('sliderAction').value,
+                        insight: document.getElementById('auditInsight').value
+                    };
+                    this.state.addAudit(entry);
+                    this.toast('✅ День закрыт');
+                    ['Focus','Emotion','Action'].forEach(n => {
+                        document.getElementById(`slider${n}`).value = 5;
+                        document.getElementById(`val${n}`).textContent = 5;
+                    });
+                    document.getElementById('auditInsight').value = '';
+                    this.updateVerdict();
+                };
+                this.updateVerdict();
+            }
+            
+            updateVerdict() {
+                const f = +document.getElementById('sliderFocus').value;
+                const e = +document.getElementById('sliderEmotion').value;
+                const a = +document.getElementById('sliderAction').value;
+                const avg = (f+e+a)/3;
+                const el = document.getElementById('auditVerdict');
+                
+                let html;
+                if (avg >= 8) html = `<div style="font-size: 40px;">🏆</div><h3 class="text-jarvis" style="margin: 8px 0;">Отличный день</h3><p style="color: var(--text-muted); font-size: 13px;">Индекс: <strong class="text-jarvis">${avg.toFixed(1)}/10</strong></p>`;
+                else if (avg >= 5) html = `<div style="font-size: 40px;">⚖️</div><h3 class="text-athena" style="margin: 8px 0;">Средний темп</h3><p style="color: var(--text-muted); font-size: 13px;">Индекс: <strong class="text-athena">${avg.toFixed(1)}/10</strong></p>`;
+                else html = `<div style="font-size: 40px;">⚠️</div><h3 class="text-danger" style="margin: 8px 0;">Сбой системы</h3><p style="color: var(--text-muted); font-size: 13px;">Индекс: <strong class="text-danger">${avg.toFixed(1)}/10</strong></p>`;
+                el.innerHTML = html;
+            }
+            
+            setupAnalytics() {
+                document.querySelectorAll('.tab').forEach(t => {
+                    t.onclick = () => {
+                        document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+                        t.classList.add('active');
+                        this.currentPeriod = t.dataset.period;
+                        this.renderAnalytics();
+                    };
+                });
+                document.getElementById('btnExportCSV').onclick = () => {
+                    const csv = this.analytics.exportCSV(this.currentPeriod);
+                    const blob = new Blob([csv], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = `athena-${this.currentPeriod}.csv`; a.click();
+                    this.toast('✅ CSV экспортирован');
+                };
+            }
+            
+            setupSettings() {
+                document.querySelectorAll('.toggle').forEach(t => {
+                    t.onclick = () => {
+                        const k = t.dataset.key;
+                        this.state.settings[k] = !this.state.settings[k];
+                        t.classList.toggle('on', this.state.settings[k]);
+                        this.state.save('athena_settings', this.state.settings);
+                    };
+                });
+                document.getElementById('btnRequestNotif').onclick = async () => {
+                    const ok = await this.notif.request();
+                    if (ok) this.toast('✅ Уведомления включены');
+                };
+                document.getElementById('btnClearArchive').onclick = () => {
+                    if (confirm('Удалить все записи?')) {
+                        this.state.clearAll();
+                        this.renderArchive();
+                        this.renderDashboard();
+                        this.toast('✅ Архив очищен');
+                    }
+                };
+            }
+            
+            renderDashboard() {
+                const audits = this.state.auditHistory.slice(0, 7);
+                if (audits.length > 0) {
+                    const s = audits.reduce((a, c) => { a.f+=c.focus; a.e+=c.emotion; a.a+=c.action; return a; }, {f:0,e:0,a:0});
+                    const n = audits.length;
+                    document.getElementById('statFocus').textContent = (s.f/n).toFixed(1);
+                    document.getElementById('statEmotion').textContent = (s.e/n).toFixed(1);
+                    document.getElementById('statAction').textContent = (s.a/n).toFixed(1);
+                    this.drawRadar([(s.f/n), (s.e/n), (s.a/n)]);
+                }
+                
+                const all = [
+                    ...this.state.triageHistory.slice(0,3).map(i => ({...i, type:'triage'})),
+                    ...this.state.auditHistory.slice(0,3).map(i => ({...i, type:'audit'}))
+                ].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0,4);
+                
+                const el = document.getElementById('recentActivity');
+                if (all.length === 0) {
+                    el.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 13px;">Нет записей.</p>';
+                } else {
+                    el.innerHTML = all.map(i => `
+                        <div class="archive-item">
+                            <div class="archive-title">${i.type==='triage' ? '⚔️ '+(i.event||'').substring(0,30)+'...' : '🌙 Аудит дня'}</div>
+                            <div class="archive-meta">${new Date(i.timestamp).toLocaleString('ru-RU')}</div>
+                        </div>
+                    `).join('');
+                }
+            }
+            
+            drawRadar(vals) {
+                const c = document.getElementById('radarChart');
+                const ctx = c.getContext('2d');
+                const w = c.width, h = c.height, cx = w/2, cy = h/2, r = Math.min(w,h)/2 - 30;
+                ctx.clearRect(0,0,w,h);
+                
+                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+                for (let i=1; i<=5; i++) {
+                    ctx.beginPath();
+                    const rr = (r/5)*i;
+                    for (let j=0; j<=3; j++) {
+                        const a = j*(Math.PI*2/3) - Math.PI/2;
+                        const x = cx + rr*Math.cos(a), y = cy + rr*Math.sin(a);
+                        j===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+                    }
+                    ctx.closePath(); ctx.stroke();
+                }
+                
+                if (vals.some(v => v > 0)) {
+                    ctx.beginPath();
+                    ctx.fillStyle = 'rgba(0, 240, 255, 0.2)';
+                    ctx.strokeStyle = '#00f0ff';
+                    ctx.lineWidth = 2;
+                    for (let i=0; i<3; i++) {
+                        const a = i*(Math.PI*2/3) - Math.PI/2;
+                        const rr = (vals[i]/10)*r;
+                        const x = cx + rr*Math.cos(a), y = cy + rr*Math.sin(a);
+                        i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+                    }
+                    ctx.closePath(); ctx.fill(); ctx.stroke();
+                }
+                
+                ctx.fillStyle = '#94a3b8'; ctx.font = '11px sans-serif'; ctx.textAlign = 'center';
+                ['Фокус','Эмоции','Действия'].forEach((l,i) => {
+                    const a = i*(Math.PI*2/3) - Math.PI/2;
+                    ctx.fillText(l, cx + (r+18)*Math.cos(a), cy + (r+18)*Math.sin(a) + 4);
+                });
+            }
+            
+            renderAnalytics() {
+                const data = this.analytics.getData(this.currentPeriod);
+                const stats = this.analytics.calc(data);
+                const el = document.getElementById('analyticsContent');
+                const names = { day: 'День', week: 'Неделя', month: 'Месяц', year: 'Год' };
+                document.getElementById('periodLabel').textContent = names[this.currentPeriod];
+                
+                if (!stats) {
+                    el.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 13px;">Недостаточно данных.</p>';
+                    document.getElementById('reportBlock').textContent = 'Нет данных для отчета.';
+                    return;
+                }
+                
+                el.innerHTML = `
+                    <div class="stats" style="grid-template-columns: 1fr 1fr;">
+                        <div class="stat"><div class="stat-lbl">Ср. фокус</div><div class="stat-val text-jarvis">${stats.avgF}</div></div>
+                        <div class="stat"><div class="stat-lbl">Ср. эмоции</div><div class="stat-val text-athena">${stats.avgE}</div></div>
+                        <div class="stat"><div class="stat-lbl">Ср. действия</div><div class="stat-val text-jarvis">${stats.avgA}</div></div>
+                        <div class="stat"><div class="stat-lbl">Триажей</div><div class="stat-val text-success">${stats.totalT}</div></div>
+                    </div>
+                `;
+                document.getElementById('reportBlock').textContent = this.analytics.report(this.currentPeriod, stats);
+            }
+            
+            renderArchive() {
+                const all = [
+                    ...this.state.triageHistory.map(i => ({...i, type:'triage'})),
+                    ...this.state.auditHistory.map(i => ({...i, type:'audit'}))
+                ].sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+                
+                const el = document.getElementById('archiveList');
+                if (all.length === 0) {
+                    el.innerHTML = '<p style="text-align: center; color: var(--text-muted); padding: 20px; font-size: 13px;">Архив пуст.</p>';
+                    return;
+                }
+                el.innerHTML = all.map(i => {
+                    if (i.type === 'triage') {
+                        return `<div class="archive-item">
+                            <div class="archive-title">⚔️ ${i.event}</div>
+                            <div class="archive-meta">${new Date(i.timestamp).toLocaleString('ru-RU')} | ${i.control==='control'?'Взято в работу':'Amor Fati'}</div>
+                        </div>`;
+                    } else {
+                        const avg = ((i.focus+i.emotion+i.action)/3).toFixed(1);
+                        return `<div class="archive-item">
+                            <div class="archive-title">🌙 Аудит (индекс: ${avg}/10)</div>
+                            <div class="archive-meta">${new Date(i.timestamp).toLocaleString('ru-RU')} | ${i.insight||'Без инсайта'}</div>
+                        </div>`;
+                    }
+                }).join('');
+            }
+            
+            toast(msg) {
+                const c = document.getElementById('toastContainer');
+                const t = document.createElement('div');
+                t.className = 'toast toast-success';
+                t.textContent = msg;
+                c.appendChild(t);
+                setTimeout(() => t.remove(), 3000);
+            }
+        }
+
+        // ============ INIT ============
+        document.addEventListener('DOMContentLoaded', () => {
+            const state = new State();
+            const analytics = new Analytics(state);
+            const notif = new Notifications(state);
+            new UI(state, analytics, notif);
+        });
+    </script>
+</body>
+</html>
